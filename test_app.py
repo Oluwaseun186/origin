@@ -4,29 +4,18 @@ import os
 # Add current directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Now import app
-from app import TaskManager
+from app import app  # Import the Flask app
 import pytest
 
-class app:
-    def test_add_task(self):
-        manager = TaskManager()
-        manager.add_task("Test task")
-        assert len(manager.tasks) == 1
-        assert manager.tasks[0]["task"] == "Test task"
-        assert manager.tasks[0]["completed"] == False
+@pytest.fixture
+def client():
+    with app.test_client() as client:
+        yield client
 
-    def test_complete_task(self):
-        manager = TaskManager()
-        manager.add_task("Test task")
-        manager.complete_task(0)
-        assert manager.tasks[0]["completed"] == True
+def test_home_page(client):
+    response = client.get('/')
+    assert response.status_code == 200
 
-    def test_delete_task(self):
-        manager = TaskManager()
-        manager.add_task("Test task")
-        manager.delete_task(0)
-        assert len(manager.tasks) == 0
-
-if __name__ == "__main__":
-    pytest.main()
+def test_health_check(client):
+    response = client.get('/health')
+    assert response.status_code == 200
