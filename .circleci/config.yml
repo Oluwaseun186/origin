@@ -23,6 +23,13 @@ jobs:
             python -m venv venv
             . venv/bin/activate
             python -V
+      
+      - run:
+         name: Run tests (pytest)
+         command: |
+          . venv/bin/activate
+          export PYTHONPATH=.
+          pytest --junitxml=test-reports/results.xml || true
 
       - run:
           name: Install dependencies

@@ -1,4 +1,4 @@
-from task_manager.app import app
+from app import app
 import sqlite3
 
 
