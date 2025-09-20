@@ -12,6 +12,10 @@ jobs:
     steps:
       - checkout
 
+      - run:
+          name: Set PYTHONPATH
+          command: echo 'export PYTHONPATH=/home/circleci/repo' >> $BASH_ENV
+
       - restore_cache:
           keys:
             - pip-deps-{{ checksum "requirements.txt" }}
@@ -51,8 +55,8 @@ jobs:
           name: Run tests (pytest)
           command: |
             . venv/bin/activate
-            export PYTHONPATH=.
             mkdir -p test-reports
+            export PYTHONPATH=/home/circleci/repo
             if command -v pytest >/dev/null 2>&1; then
               pytest --junitxml=test-reports/results.xml -v || true
             else
@@ -66,24 +70,7 @@ jobs:
           path: test-reports
           destination: test-reports
 
-  deploy:
-    executor: python-executor
-    steps:
-      - checkout
-      - run:
-          name: Deploy preparation
-          command: echo "🚀 Deployment preparation complete"
-      - run:
-          name: Deploy
-          command: echo "🚀 Your actual deploy command goes here"
-
 workflows:
   test_and_deploy:
     jobs:
       - install-and-test
-      - deploy:
-          requires:
-            - install-and-test
-          filters:
-            branches:
-              only: main
