@@ -17,7 +17,7 @@ def init_db():
     conn.close()
 
 init_db()
-    
+
 
 @app.route('/')
 def index():
@@ -50,13 +50,11 @@ def delete(task_id):
     conn.close()
     return redirect(url_for('index'))
 
+
+@app.route('/health')
+def health_check():
+    return {'status': 'healthy'}, 200
+
+
 if __name__ == '__main__':
     app.run(debug=True)
-
-@app.route('/health')
-def health_check():
-    return {'status': 'healthy'}, 200
-
-@app.route('/health')
-def health_check():
-    return {'status': 'healthy'}, 200
