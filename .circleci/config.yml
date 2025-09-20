@@ -23,13 +23,6 @@ jobs:
             python -m venv venv
             . venv/bin/activate
             python -V
-      
-      - run:
-         name: Run tests (pytest)
-         command: |
-          . venv/bin/activate
-          export PYTHONPATH=.
-          pytest --junitxml=test-reports/results.xml || true
 
       - run:
           name: Install dependencies
@@ -58,11 +51,12 @@ jobs:
           name: Run tests (pytest)
           command: |
             . venv/bin/activate
+            export PYTHONPATH=.
             mkdir -p test-reports
             if command -v pytest >/dev/null 2>&1; then
-              pytest --junitxml=test-reports/results.xml || true
+              pytest --junitxml=test-reports/results.xml -v || true
             else
-              echo "pytest not installed; skipping test"
+              echo "pytest not installed; skipping tests"
             fi
 
       - store_test_results:

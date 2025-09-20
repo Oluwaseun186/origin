@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app import TaskManager
 import pytest
 
-class TestTaskManager:
+class app:
     def test_add_task(self):
         manager = TaskManager()
         manager.add_task("Test task")
