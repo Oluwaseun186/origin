@@ -1,5 +1,8 @@
 name: CI/CD with Advanced Security
 
+permissions:
+ contents: read
+ id-token: write
 on:
   push:
     branches: [ main ]
@@ -128,6 +131,32 @@ jobs:
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: 'trivy-results.sarif'
+
+  # Stage 3: Infrastructure Security
+  infrastructure-security:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Checkov IaC Scan
+      uses: bridgecrewio/checkov-action@v12
+      with:
+        directory: .
+        framework: all
+        output_format: sarif
+        output_file_path: checkov-results.sarif
+
+    - name: Upload Checkov Results
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'checkov-results.sarif'
 
   # Stage 4: Secrets Detection
   secrets-detection:
