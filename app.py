@@ -58,3 +58,8 @@ def health_check():
 
 if __name__ == '__main__':
     app.run()
+
+# Add this to your app.py
+@app.route('/health')
+def health_check():
+    return {'status': 'healthy'}, 200
