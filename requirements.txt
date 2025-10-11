@@ -3,19 +3,3 @@ pytest
 werkzeug==2.3.8
 pytest
 Flask
-# Security Scanning
-semgrep
-trivy
-snyk
-checkov
-ggshield
-zapcli
-
-# Supply Chain Security
-syft
-cosign
-slsa-verifier
-
-# AI/ML Security (emerging)
-tensorboard-plugin-profile
-robustness-toolbox
