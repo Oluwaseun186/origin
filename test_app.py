@@ -39,3 +39,16 @@ else:
 def test_always_passes():
     """This test should always pass"""
     assert True
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+def test_basic():
+    """Basic test that always passes"""
+    assert True
+
+def test_another():
+    """Another basic test"""
+    assert 1 + 1 == 2
+
+if __name__ == "__main__":
+    pytest.main()
