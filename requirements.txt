@@ -3,7 +3,6 @@ pytest
 werkzeug==2.3.8
 pytest
 Flask
-git 
 # Security Scanning
 semgrep
 trivy
