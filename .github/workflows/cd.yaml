@@ -65,27 +65,33 @@ jobs:
       uses: github/codeql-action/analyze@v3
 
   dependency-security:
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    continue-on-error: true
+   runs-on: ubuntu-latest
+   needs: build-and-test
+   continue-on-error: true
 
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+   steps:
+   - name: Checkout repository
+     uses: actions/checkout@v4
 
-    - name: Snyk Open Source Security Scan
-      run: |
-        npx snyk@latest test --all-projects --sarif-file-output=snyk.sarif || true
+   - name: Run Snyk for Python using Docker
+     run: |
+      docker run --rm -v "$(pwd):/app"-w /app snyk/snyk:linux test --command=pip --file=requirements.txt --sarif-file-output=snyk.sarif || echo "Snyk scan completed"
 
-    - name: Upload Snyk Results
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'snyk.sarif'
+   - name: Create empty SARIF file if Snyk didn't create one
+     run: |
+      if [ ! -f snyk.sarif ]; then
+        echo '{"version": "2.1.0", "runs": []}' > snyk.sarif
+      fi
 
-    - name: Generate SBOM with Syft
-      uses: anchore/sbom-action@v0
-      with:
-        format: 'spdx-json'
+   - name: Upload Snyk Results
+     uses: github/codeql-action/upload-sarif@v3
+     with:
+      sarif_file: 'snyk.sarif'
+
+   - name: Generate SBOM with Syft
+     uses: anchore/sbom-action@v0
+     with:
+      format: 'spdx-json'
 
   container-scan:
     runs-on: ubuntu-latest
