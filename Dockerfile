@@ -20,7 +20,7 @@ USER appuser
 EXPOSE 5000
 
 # Add health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=40s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
 CMD ["python", "app.py"]
