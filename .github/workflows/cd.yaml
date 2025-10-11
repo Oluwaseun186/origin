@@ -221,7 +221,7 @@ jobs:
   # Final Security Report
   security-report:
     runs-on: ubuntu-latest
-    needs: [code-security, dependency-security, container-scan, infrastructure-security, secrets-detection]
+    needs: [code-security, dependency-security, container-scan, infrastructure-security]
     if: always()
 
     steps:
