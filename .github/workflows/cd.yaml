@@ -1,8 +1,9 @@
 name: CI/CD with Advanced Security
 
 permissions:
- contents: read
- id-token: write
+  contents: read
+  id-token: write
+
 on:
   push:
     branches: [ main ]
@@ -13,27 +14,26 @@ jobs:
   # Stage 1: Build and Test
   build-and-test:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
 
-    - name: Run tests
-      run: |
-        python -m pytest test_app.py -v || echo "Tests completed"
+      - name: Run tests
+        run: |
+          python -m pytest test_app.py -v || echo "Tests completed"
 
-  # Stage 2: Security Scanning (Parallel)
+  # Stage 2: Static App Security (SAST)
   code-security:
     runs-on: ubuntu-latest
     needs: build-and-test
@@ -41,98 +41,80 @@ jobs:
       actions: read
       contents: read
       security-events: write
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Semgrep SAST Scanning
-      uses: returntocorp/semgrep-action@v1
-      with:
-        config: p/security-audit
-    
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: python
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Autobuild CodeQL
-      uses: github/codeql-action/autobuild@v3
+      - name: Semgrep SAST Scanning
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/security-audit
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
 
+      - name: Autobuild CodeQL
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # Stage 3: Dependency Scanning
   dependency-security:
     runs-on: ubuntu-latest
     needs: build-and-test
     continue-on-error: true
     permissions:
       security-events: write
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Run Snyk for Python using Docker
-      run: |
-        # Run Snyk and capture output
-        docker run --rm -v "$(pwd):/app" -w /app snyk/snyk:linux test \
-          --command=pip \
-          --file=requirements.txt \
-          --sarif-file-output=snyk.sarif \
-          || echo "Snyk scan completed (exit code: $?)"
+      - name: Run Snyk for Python using Docker
+        run: |
+          docker run --rm -v "$(pwd):/app" -w /app snyk/snyk:linux test \
+            --command=pip \
+            --file=requirements.txt \
+            --sarif-file-output=snyk.sarif \
+            || echo "Snyk scan completed (exit code: $?)"
 
-    - name: Create valid SARIF file
-      run: |
-        # Create a valid SARIF file with proper structure
-        cat > snyk.sarif << 'EOF'
-        {
-          "version": "2.1.0",
-          "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-          "runs": [
-            {
-              "tool": {
-                "driver": {
-                  "name": "Snyk",
-                  "informationUri": "https://snyk.io",
-                  "version": "1.0.0"
-                }
-              },
-              "results": []
-            }
-          ]
-        }
-        EOF
+      - name: Ensure valid SARIF file
+        run: |
+          if [ ! -s snyk.sarif ]; then
+            echo '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"Snyk","informationUri":"https://snyk.io","version":"1.0.0"}},"results":[]}]}'>snyk.sarif
+          fi
 
-    - name: Upload Snyk Results
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'snyk.sarif'
+      - name: Upload Snyk Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk.sarif
 
+  # Stage 4: Container Security (Trivy)
   container-scan:
     runs-on: ubuntu-latest
     needs: build-and-test
     continue-on-error: true
     permissions:
       security-events: write
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Trivy Filesystem Scan
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
+      - name: Trivy Filesystem Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          format: sarif
+          output: trivy-results.sarif
 
-    - name: Upload Trivy Results
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'trivy-results.sarif'
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
 
-  # Stage 3: Infrastructure Security
+  # Stage 5: Infrastructure Security (Checkov)
   infrastructure-security:
     runs-on: ubuntu-latest
     needs: build-and-test
@@ -140,45 +122,24 @@ jobs:
     permissions:
       contents: read
       security-events: write
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Checkov IaC Scan
-      uses: bridgecrewio/checkov-action@v12
-      with:
-        directory: .
-        framework: all
-        output_format: sarif
-        output_file_path: checkov-results.sarif
+      - name: Checkov IaC Scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: all
+          output_format: sarif
+          output_file_path: checkov-results.sarif
 
-    - name: Upload Checkov Results
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'checkov-results.sarif'
+      - name: Upload Checkov Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-results.sarif
 
-  # Stage 4: Secrets Detection
-  # secrets-detection:
-  #   runs-on: ubuntu-latest
-  #   needs: build-and-test
-  #   continue-on-error: true
-
-  #   steps:
-  #   - name: Checkout repository
-  #     uses: actions/checkout@v4
-  #     with:
-  #       fetch-depth: 0
-
-  #   - name: GitGuardian Secrets Detection
-  #     uses: GitGuardian/gg-shield-action@master
-
-  #   - name: Gitleaks Secrets Scan
-  #     uses: gitleaks/gitleaks-action@v2
-  #     env:
-  #       GITHUB_TOKEN: ${{ secrets.GITGUARDIAN_API_KEY }}
-
-  # Stage 5: Docker Build and Push (Final Stage)
+  # Stage 6: Docker Build & Push (only on main push)
   docker-build-push:
     runs-on: ubuntu-latest
     needs: [build-and-test, code-security, dependency-security, container-scan, infrastructure-security]
@@ -186,69 +147,157 @@ jobs:
     permissions:
       id-token: write
       contents: read
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-    - name: Build, push and sign Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: |
-          oluwaseun7/taskmanager:1.0.1
-          oluwaseun7/taskmanager:latest
-        provenance: true
-        sbom: true
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            oluwaseun7/taskmanager:1.0.1
+            oluwaseun7/taskmanager:latest
+          provenance: true
+          sbom: true
 
-    - name: Install Cosign
-      uses: sigstore/cosign-installer@v3
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
 
-    - name: Sign container images
-      run: |
-        # Wait for images to be available
-        sleep 10
-        
-        # Get the actual image digest from Docker Hub
-        DIGEST_1=$(docker buildx imagetools inspect oluwaseun7/taskmanager:1.0.1 --format '{{json .}}' | jq -r '.manifest | .digest')
-        DIGEST_2=$(docker buildx imagetools inspect oluwaseun7/taskmanager:latest --format '{{json .}}' | jq -r '.manifest | .digest')
-        
-        # Sign using the actual digest
-        cosign sign --yes oluwaseun7/taskmanager@${DIGEST_1}
-        cosign sign --yes oluwaseun7/taskmanager@${DIGEST_2}
+      - name: Sign container images (tag signing)
+        run: |
+          sleep 10
+          cosign sign --yes docker.io/oluwaseun7/taskmanager:1.0.1
+          cosign sign --yes docker.io/oluwaseun7/taskmanager:latest
 
-  # Final Security Report
+  # Stage 7: Security Summary (always runs)
   security-report:
     runs-on: ubuntu-latest
     needs: [code-security, dependency-security, container-scan, infrastructure-security]
     if: always()
-
     steps:
-    - name: Generate Security Report
-      run: |
-        echo "## 🔒 Security Scan Results"
-        echo ""
-        echo "### ✅ Completed Security Scans:"
-        echo "- **SAST**: CodeQL & Semgrep"
-        echo "- **SCA**: Snyk"
-        echo "- **Container**: Trivy Scan"
-        echo "- **Infrastructure**: Checkov"
-        echo "- **Container Signing**: Cosign"
-        echo ""
-        echo "### 📊 Overall Security Status:"
-        echo "All security scans completed successfully!"
-        echo ""
-        echo "---"
-        echo "*Security pipeline executed on $(date)*"
-      shell: bash
-  
+      - name: Generate Security Report
+        run: |
+          echo "## 🔒 Security Scan Results"
+          echo ""
+          echo "### ✅ Completed Security Scans:"
+          echo "- **SAST**: CodeQL & Semgrep"
+          echo "- **SCA**: Snyk"
+          echo "- **Container**: Trivy"
+          echo "- **Infrastructure**: Checkov"
+          echo "- **Image Signing**: Cosign"
+          echo ""
+          echo "### 📊 Status:"
+          echo "All security scans completed (status may vary)."
+          echo ""
+          echo "---"
+          echo "*Executed on $(date)*"
+
+  # Stage 8: Deploy to Google Cloud (depends on docker-build-push)
+  deploy:
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: testing-app-2025101
+          service_account_key: ${{ secrets.GCP_CREDENTIALS }}
+          export_default_credentials: true
+
+      - name: Create or verify VM
+        run: |
+          ZONE="us-central1-a"
+          VM_NAME="flask-todo-vm"
+          if ! gcloud compute instances describe "$VM_NAME" --zone="$ZONE" >/dev/null 2>&1; then
+            echo "Creating VM instance..."
+            gcloud compute instances create "$VM_NAME" \
+              --zone="$ZONE" \
+              --machine-type=e2-micro \
+              --image-family=debian-12 \
+              --image-project=debian-cloud \
+              --tags=http-server \
+              --metadata=startup-script='#!/bin/bash
+                apt update -y
+                apt install -y python3 python3-pip nginx git
+                mkdir -p /var/www/flaskapp
+                systemctl enable nginx
+                systemctl start nginx'
+          else
+            echo "VM $VM_NAME already exists, skipping creation."
+          fi
+
+      - name: Deploy Flask App
+        env:
+          ZONE: us-central1-a
+          VM_NAME: flask-todo-vm
+        run: |
+          EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "Deploying to $EXTERNAL_IP..."
+
+          gcloud compute scp --recurse ./ "$VM_NAME":/home/${USER}/flaskapp --zone="$ZONE" --quiet
+
+          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command="
+            set -e
+            cd /home/${USER}/flaskapp
+
+            echo 'Installing Python dependencies...'
+            sudo pip3 install -r requirements.txt || sudo pip3 install flask gunicorn
+
+            # Initialize DB if missing
+            if [ ! -f tasks.db ]; then
+              python3 -c 'import app'
+            fi
+
+            # Write systemd service file
+            echo '[Unit]
+            Description=Gunicorn for Flask App
+            After=network.target
+
+          [Service]
+          User=${USER}
+          Group=www-data
+          WorkingDirectory=/home/${USER}/flaskapp
+          ExecStart=/usr/bin/gunicorn --workers 3 --bind unix:/home/${USER}/flaskapp/flaskapp.sock app:app
+
+          [Install]
+          WantedBy=multi-user.target' | sudo tee /etc/systemd/system/flaskapp.service > /dev/null
+
+                      # Write nginx site config
+                      echo 'server {
+              listen 80;
+              server_name _;
+              location / {
+                  include proxy_params;
+                  proxy_pass http://unix:/home/${USER}/flaskapp/flaskapp.sock;
+              }
+          }' | sudo tee /etc/nginx/sites-available/flaskapp > /dev/null
+
+                      sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
+                      sudo nginx -t
+                      sudo systemctl daemon-reload
+                      sudo systemctl enable flaskapp
+                      sudo systemctl restart flaskapp
+                      sudo systemctl restart nginx
+                    "
+
+                - name: Show external IP
+                  env:
+                    ZONE: us-central1-a
+                  run: |
+                    EXTERNAL_IP=$(gcloud compute instances describe flask-todo-vm --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+                    echo "🚀 App deployed successfully!"
+                    echo "🌍 Visit: http://${EXTERNAL_IP}"
