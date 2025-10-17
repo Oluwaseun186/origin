@@ -258,65 +258,93 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Deploy to VM
-        run: |
-          # ... same setup code ...
-          
-          # Deploy only necessary files
-          echo "🚀 Deploying necessary files..."
-          tar czf - \
-            --exclude='.git' \
-            --exclude='__pycache__' \
-            --exclude='.github' \
-            --exclude='.circleci' \
-            --exclude='*.db' \
-            app.py requirements.txt templates test_app.py | \
-          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command='
+      - name: Deploy to GCP VM
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ steps.get-ip.outputs.ip }}
+          username: ${{ secrets.VM_USERNAME }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            # Update and install dependencies
+            sudo apt update -y
+            sudo apt install -y python3 python3-pip python3-venv nginx git
+            
+            # Create app directory
+            sudo mkdir -p /var/www/flaskapp
+            sudo chown -R $USER:$USER /var/www/flaskapp
+            
+            # Clone or copy your app
             cd /var/www/flaskapp
-            tar xzf -
-          ' --strict-host-key-checking=no
-    
-          echo "Deployment successful! Visit: http://$EXTERNAL_IP"
+            git clone https://github.com/Oluwaseun186/tastManager.git .
+            
+            # Set up Python environment
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Configure nginx
+            sudo tee /etc/nginx/sites-available/flaskapp > /dev/null << EOF
+            server {
+                listen 80;
+                server_name _;
+                location / {
+                    proxy_pass http://127.0.0.1:5000;
+                    proxy_set_header Host \$host;
+                    proxy_set_header X-Real-IP \$remote_addr;
+                }
+            }
+            EOF
+            
+            sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled/
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo systemctl restart nginx
+            
+            # Start the application
+            source venv/bin/activate
+            nohup python app.py > /var/log/flaskapp.log 2>&1 &
+            echo "Application started."
+      
+            echo "Deployment successful! Visit: http://$EXTERNAL_IP"
 
-            # Write systemd service file
-            echo '[Unit]
-            Description=Gunicorn for Flask App
-            After=network.target
+              # Write systemd service file
+              echo '[Unit]
+              Description=Gunicorn for Flask App
+              After=network.target
 
-          [Service]
-          User=${USER}
-          Group=www-data
-          WorkingDirectory=/home/${USER}/flaskapp
-          ExecStart=/usr/bin/gunicorn --workers 3 --bind unix:/home/${USER}/flaskapp/flaskapp.sock app:app
+            [Service]
+            User=${USER}
+            Group=www-data
+            WorkingDirectory=/home/${USER}/flaskapp
+            ExecStart=/usr/bin/gunicorn --workers 3 --bind unix:/home/${USER}/flaskapp/flaskapp.sock app:app
 
-          [Install]
-          WantedBy=multi-user.target' | sudo tee /etc/systemd/system/flaskapp.service > /dev/null
+            [Install]
+            WantedBy=multi-user.target' | sudo tee /etc/systemd/system/flaskapp.service > /dev/null
 
-                      # Write nginx site config
-                      echo 'server {
-              listen 80;
-              server_name _;
-              location / {
-                  include proxy_params;
-                  proxy_pass http://unix:/home/${USER}/flaskapp/flaskapp.sock;
-              }
-          }' | sudo tee /etc/nginx/sites-available/flaskapp > /dev/null
+                        # Write nginx site config
+                        echo 'server {
+                listen 80;
+                server_name _;
+                location / {
+                    include proxy_params;
+                    proxy_pass http://unix:/home/${USER}/flaskapp/flaskapp.sock;
+                }
+            }' | sudo tee /etc/nginx/sites-available/flaskapp > /dev/null
 
-                      sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
-                      sudo nginx -t
-                      sudo systemctl daemon-reload
-                      sudo systemctl enable flaskapp
-                      sudo systemctl restart flaskapp
-                      sudo systemctl restart nginx
-                    "
+                        sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
+                        sudo nginx -t
+                        sudo systemctl daemon-reload
+                        sudo systemctl enable flaskapp
+                        sudo systemctl restart flaskapp
+                        sudo systemctl restart nginx
+                      "
 
-                - name: Show external IP
-                  env:
-                    ZONE: us-central1-a
-                  run: |
-                    EXTERNAL_IP=$(gcloud compute instances describe flask-todo-vm --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-                    echo "🚀 App deployed successfully!"
-                    echo "🌍 Visit: http://${EXTERNAL_IP}"
+                  - name: Show external IP
+                    env:
+                      ZONE: us-central1-a
+                    run: |
+                      EXTERNAL_IP=$(gcloud compute instances describe flask-todo-vm --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+                      echo "🚀 App deployed successfully!"
+                      echo "🌍 Visit: http://${EXTERNAL_IP}"
 
 
 
