@@ -211,39 +211,43 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: testing-app-2025101
-          service_account_key: ${{ secrets.GCP_CREDENTIALS }}
-          export_default_credentials: true
-
-      - name: Verify GCP Authentication
+      - name: Authenticate with Google Cloud
         run: |
+          echo "${{ secrets.GCP_CREDENTIALS }}" > ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
+          gcloud config set project testing-app-2025101
           gcloud auth list
           gcloud config list
 
-      - name: Creat or verify VM
+      - name: Verify authentication
         run: |
-          ZONE="us-central1-a"
-          VM_NAME="flask-todo-vm"
-          if ! gcloud compute instances describe "$VM_NAME" --zone="$ZONE" >/dev/null 2>&1; then
-            echo "Creating VM instance..."
-            gcloud compute instances create "$VM_NAME" \
-              --zone="$ZONE" \
-              --machine-type=e2-micro \
-              --image-family=debian-12 \
-              --image-project=debian-cloud \
-              --tags=http-server \
-              --metadata=startup-script='#!/bin/bash
-                apt update -y
-                apt install -y python3 python3-pip nginx git
-                mkdir -p /var/www/flaskapp
-                systemctl enable nginx
-                systemctl start nginx'
-          else
-            echo "VM $VM_NAME already exists, skipping creation."
-          fi
+          echo "✅ Verifying authentication..."
+          gcloud auth list
+          echo "Active project:"
+          gcloud config get-value project
+
+      - name: Create or verify VM
+        run: |
+            ZONE="us-central1-a"
+            VM_NAME="flask-todo-vm"
+
+            if ! gcloud compute instances describe "$VM_NAME" --zone="$ZONE" >/dev/null 2>&1; then
+              echo "Creating VM instance..."
+              gcloud compute instances create "$VM_NAME" \
+                --zone="$ZONE" \
+                --machine-type=e2-micro \
+                --image-family=debian-12 \
+                --image-project=debian-cloud \
+                --tags=http-server \
+                --metadata=startup-script='#!/bin/bash
+                  apt update -y
+                  apt install -y python3 python3-pip nginx git
+                  mkdir -p /var/www/flaskapp
+                  systemctl enable nginx
+                  systemctl start nginx'
+            else
+              echo "VM $VM_NAME already exists, skipping creation."
+            fi
 
       - name: Deploy Flask App
         env:
