@@ -217,13 +217,13 @@ jobs:
           project_id: testing-app-2025101
           service_account_key: ${{ secrets.GCP_CREDENTIALS }}
           export_default_credentials: true
-          
+
       - name: Verify GCP Authentication
         run: |
           gcloud auth list
           gcloud config list
 
-      - name: Create or verify VM
+      - name: Creat or verify VM
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
