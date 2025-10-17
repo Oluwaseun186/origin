@@ -276,13 +276,18 @@ jobs:
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          echo "🌍 Live URL: http://$EXTERNAL_IP:5000"
+          echo "Live URL: http://$EXTERNAL_IP:5000"
 
       - name: Safe Cleanup (VM only)
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
-          
-          echo "🧹 Cleaning up VM only..."
           gcloud compute instances delete "$VM_NAME" --zone="$ZONE" --quiet
-          echo "✅ Cleanup complete - VM deleted, project remains"
+
+      - name: Delete Only Project
+        run: |
+          PROJECT_ID="testing-app-2025101"
+          sleep 30
+          
+          gcloud projects delete "$PROJECT_ID" --quiet
+          echo "Project deletion scheduled"
