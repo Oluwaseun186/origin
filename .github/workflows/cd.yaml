@@ -258,73 +258,35 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Deployment Successful
-        run: |
-          ZONE="us-central1-a"
-          VM_NAME="flask-todo-vm"
-          EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          echo "   http://$EXTERNAL_IP:5000"
-          echo "   1. Open http://$EXTERNAL_IP:5000 in your browser"
-       
-          echo "   View logs: gcloud compute ssh $VM_NAME --command='tail -f ~/app.log'"
-          echo "   Restart app: gcloud compute ssh $VM_NAME --command='pkill -f \"python app.py\" && nohup ~/venv/bin/python ~/app.py > ~/flaskapp.log 2>&1 &'"
-          echo "   Stop app: gcloud compute ssh $VM_NAME --command='pkill -f \"python app.py\"'"
-
-                # Write systemd service file
-              echo '[Unit]
-              Description=Gunicorn for Flask App
-              After=network.target
-
-            [Service]
-            User=${USER}
-            Group=www-data
-            WorkingDirectory=/home/${USER}/flaskapp
-            ExecStart=/usr/bin/gunicorn --workers 3 --bind unix:/home/${USER}/flaskapp/flaskapp.sock app:app
-
-            [Install]
-            WantedBy=multi-user.target' | sudo tee /etc/systemd/system/flaskapp.service > /dev/null
-
-                        # Write nginx site config
-                        echo 'server {
-                listen 80;
-                server_name _;
-                location / {
-                    include proxy_params;
-                    proxy_pass http://unix:/home/${USER}/flaskapp/flaskapp.sock;
-                }
-            }' | sudo tee /etc/nginx/sites-available/flaskapp > /dev/null
-
-                        sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
-                        sudo nginx -t
-                        sudo systemctl daemon-reload
-                        sudo systemctl enable flaskapp
-                        sudo systemctl restart flaskapp
-                        sudo systemctl restart nginx
-                      "
-
-                  - name: Show external IP
-                    env:
-                      ZONE: us-central1-a
-                    run: |
-                      EXTERNAL_IP=$(gcloud compute instances describe flask-todo-vm --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-                      echo "App deployed successfully!"
-                      echo "Visit: http://${EXTERNAL_IP}"
-      - name: Clean up nginx configuration
+      - name: Remove nginx completely
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           
           gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
-            echo 'Cleaning up nginx configuration...'
-            # Remove our custom config and restore default
-            sudo rm -f /etc/nginx/sites-enabled/flaskapp 2>/dev/null || true
-            sudo rm -f /etc/nginx/sites-available/flaskapp 2>/dev/null || true
-            # Restore default configuration
-            sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/ 2>/dev/null || true
-            # Test nginx configuration
-            sudo nginx -t 2>/dev/null && sudo systemctl restart nginx || echo 'nginx cleanup completed'
-            echo '✅ nginx configuration cleaned up'
+            echo 'Removing nginx...'
+            sudo systemctl stop nginx 2>/dev/null || true
+            sudo systemctl disable nginx 2>/dev/null || true
+            sudo apt remove -y nginx nginx-common 2>/dev/null || true
+            sudo apt autoremove -y 2>/dev/null || true
+            echo '✅ nginx removed'
           " --strict-host-key-checking=no
 
-
-
+      - name: Deployment Success Message
+        run: |
+          ZONE="us-central1-a"
+          VM_NAME="flask-todo-vm"
+          EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          
+          echo "=================================================================="
+          echo "🚀 FLASK APP DEPLOYED SUCCESSFULLY!"
+          echo "=================================================================="
+          echo ""
+          echo "🌍 Live URL: http://$EXTERNAL_IP:5000"
+          echo ""
+          echo "✅ Simple Flask deployment (no nginx)"
+          echo "✅ Direct port 5000 access"
+          echo "✅ Full CI/CD automation"
+          echo ""
+          echo "Open the URL above to test your Flask Todo App!"
+          echo "=================================================================="
