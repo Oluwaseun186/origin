@@ -258,27 +258,39 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Deploy Flask App
-        env:
-          ZONE: us-central1-a
-          VM_NAME: flask-todo-vm
+      - name: Deploy to VM
         run: |
+          set -e  # Exit on error
+          
+          ZONE="us-central1-a"
+          VM_NAME="flask-todo-vm"
+          
+          # Get external IP
           EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          echo "Deploying to $EXTERNAL_IP..."
-
-          gcloud compute scp --recurse ./ "$VM_NAME":/home/${USER}/flaskapp --zone="$ZONE" --quiet
-
-          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command="
-            set -e
-            cd /home/${USER}/flaskapp
-
-            echo 'Installing Python dependencies...'
-            sudo pip3 install -r requirements.txt || sudo pip3 install flask gunicorn
-
-            # Initialize DB if missing
-            if [ ! -f tasks.db ]; then
-              python3 -c 'import app'
-            fi
+          echo "📦 Deploying to $EXTERNAL_IP..."
+          
+          # Wait for SSH to be available
+          echo "⏳ Waiting for VM to be ready..."
+          until gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="echo 'VM ready'" --strict-host-key-checking=no; do
+            echo "VM not ready yet, waiting..."
+            sleep 10
+          done
+          
+          # Deploy application
+          echo "🚀 Deploying application..."
+          gcloud compute scp --recurse ./* "$VM_NAME":/var/www/flaskapp/ --zone="$ZONE"
+          
+          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command='
+            cd /var/www/flaskapp
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt
+            sudo systemctl restart nginx
+            pkill -f "python app.py" || true
+            nohup python app.py > /var/log/flaskapp.log 2>&1 &
+          ' --strict-host-key-checking=no
+    
+          echo "✅ Deployment successful! Visit: http://$EXTERNAL_IP"
 
             # Write systemd service file
             echo '[Unit]
