@@ -258,43 +258,17 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: ✅ Deployment Successful
+      - name: Deployment Successful
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          
-          echo ""
-          echo "###############################################"
-          echo "#             DEPLOYMENT SUCCESS!             #"
-          echo "###############################################"
-          echo ""
-          echo "🎉 Your Flask Todo Application has been successfully"
-          echo "   deployed to Google Cloud Platform!"
-          echo ""
-          echo "🌍 LIVE APPLICATION URL:"
           echo "   http://$EXTERNAL_IP:5000"
-          echo ""
-          echo "✅ Deployment Summary:"
-          echo "   - ✅ VM Instance: Created and running"
-          echo "   - ✅ Application: Deployed and running"
-          echo "   - ✅ Dependencies: Installed"
-          echo "   - ✅ Network: Accessible via external IP"
-          echo "   - ✅ Automation: GitHub Actions pipeline working"
-          echo ""
-          echo "🚀 Next Steps:"
           echo "   1. Open http://$EXTERNAL_IP:5000 in your browser"
-          echo "   2. Test the todo app functionality"
-          echo "   3. Make code changes and push to GitHub"
-          echo "   4. Changes will auto-deploy via this pipeline!"
-          echo ""
-          echo "🔧 Management Commands:"
-          echo "   View logs: gcloud compute ssh $VM_NAME --command='tail -f ~/flaskapp.log'"
+       
+          echo "   View logs: gcloud compute ssh $VM_NAME --command='tail -f ~/app.log'"
           echo "   Restart app: gcloud compute ssh $VM_NAME --command='pkill -f \"python app.py\" && nohup ~/venv/bin/python ~/app.py > ~/flaskapp.log 2>&1 &'"
           echo "   Stop app: gcloud compute ssh $VM_NAME --command='pkill -f \"python app.py\"'"
-          echo ""
-          echo "📊 Your CI/CD pipeline is now fully automated!"
-          echo "   Every git push to main will automatically deploy updates."
 
                 # Write systemd service file
               echo '[Unit]
