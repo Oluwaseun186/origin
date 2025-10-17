@@ -270,15 +270,6 @@ jobs:
           echo "   Restart app: gcloud compute ssh $VM_NAME --command='pkill -f \"python app.py\" && nohup ~/venv/bin/python ~/app.py > ~/flaskapp.log 2>&1 &'"
           echo "   Stop app: gcloud compute ssh $VM_NAME --command='pkill -f \"python app.py\"'"
 
-          
-          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
-          # Remove the problematic nginx config
-          sudo rm -f /etc/nginx/sites-enabled/flaskapp
-          sudo rm -f /etc/nginx/sites-available/flaskapp
-          # Restore default nginx config
-          sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
-          sudo nginx -t && sudo systemctl restart nginx || echo 'nginx cleanup completed'
-
                 # Write systemd service file
               echo '[Unit]
               Description=Gunicorn for Flask App
@@ -318,6 +309,22 @@ jobs:
                       EXTERNAL_IP=$(gcloud compute instances describe flask-todo-vm --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
                       echo "App deployed successfully!"
                       echo "Visit: http://${EXTERNAL_IP}"
+      - name: Clean up nginx configuration
+        run: |
+          ZONE="us-central1-a"
+          VM_NAME="flask-todo-vm"
+          
+          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
+            echo 'Cleaning up nginx configuration...'
+            # Remove our custom config and restore default
+            sudo rm -f /etc/nginx/sites-enabled/flaskapp 2>/dev/null || true
+            sudo rm -f /etc/nginx/sites-available/flaskapp 2>/dev/null || true
+            # Restore default configuration
+            sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/ 2>/dev/null || true
+            # Test nginx configuration
+            sudo nginx -t 2>/dev/null && sudo systemctl restart nginx || echo 'nginx cleanup completed'
+            echo '✅ nginx configuration cleaned up'
+          " --strict-host-key-checking=no
 
 
 
