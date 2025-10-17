@@ -211,13 +211,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Authenticate with GCP
+      - name: Set up GCP auth
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
-          echo "${{ secrets.GCP_CREDENTIALS }}" > $HOME/gcp-key.json
-          gcloud auth activate-service-account --key-file=$HOME/gcp-key.json
-          gcloud config set project testing-app-2025101
+          # Create the key file
+          echo "$GCP_SA_KEY" > "$HOME/github-deployer-key.json"
+          
+          # Validate JSON
+          python3 -c "import json; json.load(open('$HOME/github-deployer-key.json')); print('✅ GCP key is valid JSON')"
+          
+          # Set permissions
+          chmod 600 "$HOME/github-deployer-key.json"
+          
+          # Activate service account
+          gcloud auth activate-service-account --key-file="$HOME/github-deployer-key.json"
+          
+          # Verify authentication
           gcloud auth list
           gcloud config list
+       
 
       - name: Verify authentication.
         run: |
