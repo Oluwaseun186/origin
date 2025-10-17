@@ -212,31 +212,22 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up GCP auth
-        env:
-          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
         run: |
-          # Create the key file - use $GCP_CREDENTIALS not $secrets.GCP_CREDENTIALS
-          echo "$GCP_CREDENTIALS" > "$HOME/github-deployer-key.json"
+          # Create the key file from base64
+          echo '${{ secrets.GCP_CREDENTIALS_BASE64 }}' | base64 --decode > "$HOME/github-deployer-key.json"
           
           # Validate JSON
           python3 -c "import json; json.load(open('$HOME/github-deployer-key.json')); print('✅ GCP key is valid JSON')"
           
-          # Set permissions
+          # Set permissions and authenticate
           chmod 600 "$HOME/github-deployer-key.json"
-          
-          # Activate service account
           gcloud auth activate-service-account --key-file="$HOME/github-deployer-key.json"
-          
-          # Verify authentication
           gcloud auth list
-          gcloud config list
        
 
       - name: Verify authentication.
         run: |
           echo "✅ Verifying authentication..."
-          gcloud auth list
-          echo "Active project:"
           gcloud config get-value project
 
       - name: Create or verify VM
