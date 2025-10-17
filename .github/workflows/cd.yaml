@@ -283,11 +283,3 @@ jobs:
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           gcloud compute instances delete "$VM_NAME" --zone="$ZONE" --quiet
-
-      - name: Delete Only Project
-        run: |
-          PROJECT_ID="testing-app-2025101"
-          sleep 30
-          
-          gcloud projects delete "$PROJECT_ID" --quiet
-          echo "Project deletion scheduled"
