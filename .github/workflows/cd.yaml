@@ -214,7 +214,7 @@ jobs:
       - name: Authenticate with Google Cloud
         run: |
           echo "${{ secrets.GCP_CREDENTIALS }}" > ${HOME}/gcp-key.json
-          gcloud auth activate-service-account --key-file ${HOME}/gcp-key.json
+          gcloud auth activate-service-account --key-file=${HOME}/gcp-key.json
           gcloud config set project testing-app-2025101
           gcloud auth list
           gcloud config list
