@@ -213,7 +213,7 @@ jobs:
 
       - name: Set up GCP auth
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_CREDENTIALS }}
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
         run: |
           # Create the key file
           echo "$secrets.GCP_CREDENTIALS" > "$HOME/github-deployer-key.json"
