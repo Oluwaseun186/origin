@@ -186,7 +186,7 @@ jobs:
     needs: [code-security, dependency-security, container-scan, infrastructure-security]
     if: always()
     steps:
-      - name: Generate Security Report
+      - name: Generate Security Report.
         run: |
           echo "## 🔒 Security Scan Results"
           echo ""
