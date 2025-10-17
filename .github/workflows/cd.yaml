@@ -195,7 +195,7 @@ jobs:
           echo "- **SCA**: Snyk"
           echo "- **Container**: Trivy"
           echo "- **Infrastructure**: Checkov"
-          echo "- **Image Signing**: Cosign"
+          echo "- **Image Signing**: Cosign."
           echo ""
           echo "### 📊 Status:"
           echo "All security scans completed (status may vary)."
