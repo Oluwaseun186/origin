@@ -258,39 +258,112 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Minimal Deployment
+      - name: Deploy using file copy
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           
-          echo "📦 Copying files..."
+          echo "📦 Copying application files to VM..."
           
-          # Copy only app.py and requirements.txt
-          gcloud compute scp app.py requirements.txt "$VM_NAME":~/ --zone="$ZONE"
+          # Create app directory on VM first
+          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="mkdir -p ~/flaskapp" --strict-host-key-checking=no
           
-          echo "🔧 Setting up application..."
+          # Copy essential files one by one
+          echo "Copying app.py..."
+          gcloud compute scp app.py "$VM_NAME":~/flaskapp/ --zone="$ZONE"
           
+          echo "Copying requirements.txt..."
+          gcloud compute scp requirements.txt "$VM_NAME":~/flaskapp/ --zone="$ZONE"
+          
+          # Copy templates directory if it exists locally
+          if [ -d "templates" ] && [ "$(ls -A templates)" ]; then
+            echo "Copying templates directory..."
+            # Create templates directory on VM first
+            gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="mkdir -p ~/flaskapp/templates" --strict-host-key-checking=no
+            # Copy each template file individually
+            for file in templates/*; do
+              if [ -f "$file" ]; then
+                echo "Copying $file..."
+                gcloud compute scp "$file" "$VM_NAME":~/flaskapp/templates/ --zone="$ZONE"
+              fi
+            done
+          else
+            echo "No templates directory found or it's empty, skipping..."
+          fi
+          
+          # Copy any other necessary files
+          if [ -f "test_app.py" ]; then
+            echo "Copying test_app.py..."
+            gcloud compute scp test_app.py "$VM_NAME":~/flaskapp/ --zone="$ZONE"
+          fi
+          
+          echo "🔧 Setting up application on VM..."
+          
+          # Run setup commands on VM
           gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command='
-            # Install Python if needed
+            set -e
+            cd ~/flaskapp
+            
+            echo "Installing Python dependencies..."
             sudo apt update -y
-            sudo apt install -y python3 python3-pip python3-venv
+            sudo apt install -y python3 python3-pip python3-venv nginx
             
-            # Create virtual environment
-            python3 -m venv ~/venv
+            echo "Creating virtual environment..."
+            python3 -m venv venv
+            source venv/bin/activate
             
-            # Install dependencies
-            ~/venv/bin/pip install -r ~/requirements.txt
+            echo "Installing Python packages..."
+            pip install --upgrade pip
+            pip install -r requirements.txt
             
-            # Stop any running instance and start new one
-            pkill -f "python app.py" || true
-            nohup ~/venv/bin/python ~/app.py > ~/app.log 2>&1 &
-            
-            echo "✅ App deployed and running!"
-          ' --strict-host-key-checking=no
-            
-            EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          echo "🎉 Your app is live at: http://$EXTERNAL_IP:5000"
-          echo "👉 You can also access it at: http://$EXTERNAL_IP:5000"
+            echo "Configuring nginx..."
+            # Create nginx configuration
+            sudo tee /etc/nginx/sites-available/flaskapp > /dev/null << "EOF"
+          server {
+              listen 80;
+              server_name _;
+              
+              location / {
+                  proxy_pass http://127.0.0.1:5000;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+              }
+          }
+          EOF
+                
+                # Enable the site
+                sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled/
+                sudo rm -f /etc/nginx/sites-enabled/default
+                
+                # Test nginx configuration
+                sudo nginx -t
+                
+                # Restart nginx
+                sudo systemctl restart nginx
+                
+                echo "Starting Flask application..."
+                # Stop any existing instance
+                pkill -f "python app.py" || true
+                sleep 2
+                
+                # Start the application
+                source venv/bin/activate
+                nohup python app.py > ~/flaskapp.log 2>&1 &
+                
+                # Wait a moment and check if it's running
+                sleep 5
+                if pgrep -f "python app.py" > /dev/null; then
+                  echo "✅ Flask app is running successfully!"
+                else
+                  echo "❌ Flask app failed to start. Check ~/flaskapp.log for details."
+                  exit 1
+                fi
+              ' --strict-host-key-checking=no
+              
+              # Get the external IP
+              EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+              echo "🎉 Deployment completed successfully!"
+              echo "🌍 Your Flask app is now live at: http://$EXTERNAL_IP"
                 # Write systemd service file
               echo '[Unit]
               Description=Gunicorn for Flask App
