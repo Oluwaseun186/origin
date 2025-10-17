@@ -258,18 +258,18 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Remove nginx 
-        run: |
-          ZONE="us-central1-a"
-          VM_NAME="flask-todo-vm"
+      # - name: Remove nginx 
+      #   run: |
+      #     ZONE="us-central1-a"
+      #     VM_NAME="flask-todo-vm"
           
-          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
-            echo 'Removing nginx...'
-            sudo systemctl stop nginx 2>/dev/null || true
-            sudo systemctl disable nginx 2>/dev/null || true
-            sudo apt remove -y nginx nginx-common 2>/dev/null || true
-            sudo apt autoremove -y 2>/dev/null || true
-          " --strict-host-key-checking=no
+      #     gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
+      #       echo 'Removing nginx...'
+      #       sudo systemctl stop nginx 2>/dev/null || true
+      #       sudo systemctl disable nginx 2>/dev/null || true
+      #       sudo apt remove -y nginx nginx-common 2>/dev/null || true
+      #       sudo apt autoremove -y 2>/dev/null || true
+      #     " --strict-host-key-checking=no
 
       - name: Deployment Success Message
         run: |
