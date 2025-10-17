@@ -257,44 +257,71 @@ jobs:
             else
               echo "VM $VM_NAME already exists, skipping creation."
             fi
-
-      - name: Simple VM Deployment
+      - name: Deploy to VM
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           
-          # Run everything in one command
-          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
-            cd ~
-            rm -rf flaskapp
-            git clone https://github.com/Oluwaseun186/tastManager.git flaskapp
-            cd flaskapp
-            sudo apt update -y && sudo apt install -y python3 python3-pip nginx
+          # Run deployment with proper error handling
+          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command='
+            set -e  # Exit on error
+            
+            echo "🚀 Starting deployment..."
+            
+            # Update system and install dependencies
+            sudo apt update -y
+            sudo apt install -y python3 python3-pip python3-venv nginx git
+            
+            # Set up application directory
+            mkdir -p ~/flaskapp
+            cd ~/flaskapp
+            
+            # Clone your repository (using the correct URL format)
+            git clone https://github.com/Oluwaseun186/tastManager.git .
+            
+            # Create virtual environment
             python3 -m venv venv
             source venv/bin/activate
+            
+            # Install Python dependencies
+            pip install --upgrade pip
             pip install -r requirements.txt
-            sudo tee /etc/nginx/sites-available/flaskapp > /dev/null << 'NGINXCFG'
-            server {
-                listen 80;
-                server_name _;
-                location / {
-                    proxy_pass http://127.0.0.1:5000;
-                    proxy_set_header Host \\$host;
-                    proxy_set_header X-Real-IP \\$remote_addr;
-                }
-            }
-            NGINXCFG
-            sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled/
-            sudo rm -f /etc/nginx/sites-enabled/default
-            sudo systemctl restart nginx
-            pkill -f 'python app.py' || true
-            nohup python app.py > /dev/null 2>&1 &
-            echo 'Flask app deployed and running!'
-          " --strict-host-key-checking=no
-          
-          # Get and display the IP
-          EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          echo "🎉 Your app is live at: http://$EXTERNAL_IP"
+            
+            # Create proper nginx configuration
+                sudo tee /etc/nginx/sites-available/flaskapp > /dev/null << EOF
+          server {
+              listen 80;
+              server_name _;
+              
+              location / {
+                  proxy_pass http://127.0.0.1:5000;
+                  proxy_set_header Host \$host;
+                  proxy_set_header X-Real-IP \$remote_addr;
+              }
+          }
+          EOF
+                
+                # Enable nginx site
+                sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled/
+                sudo rm -f /etc/nginx/sites-enabled/default
+                
+                # Test nginx configuration
+                sudo nginx -t
+                
+                # Restart nginx
+                sudo systemctl restart nginx
+                
+                # Stop any running Flask app and start new one
+                pkill -f "python app.py" || true
+                source venv/bin/activate
+                nohup python app.py > ~/app.log 2>&1 &
+                
+                echo "✅ Deployment completed successfully!"
+              ' --strict-host-key-checking=no
+              
+              # Get and display the IP
+              EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+              echo "🎉 Your Flask app is live at: http://$EXTERNAL_IP"
 
               # Write systemd service file
               echo '[Unit]
