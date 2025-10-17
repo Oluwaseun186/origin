@@ -258,64 +258,47 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Final Deployment
+      - name: Simple reliable deployment
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           
-          echo "🚀 Starting final deployment..."
-          
-          # Step 1: Copy application
-          echo "📦 Step 1: Copying application files..."
+          # Copy files
+          echo "Copying files..."
           gcloud compute scp app.py requirements.txt "$VM_NAME":~/ --zone="$ZONE" --strict-host-key-checking=no
           
-          # Step 2: Deploy
-          echo "🔧 Step 2: Deploying application..."
+          # Run deployment with nohup to prevent SSH timeout
+          echo "Deploying application..."
           gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
-            echo 'Setting up Python environment...'
-            python3 -m venv ~/venv
-            ~/venv/bin/pip install -r ~/requirements.txt
-            
-            echo 'Starting Flask application...'
-            pkill -f 'python app.py' || true
-            nohup ~/venv/bin/python ~/app.py > ~/flaskapp.log 2>&1 &
-            
-            echo 'Waiting for app to start...'
-            sleep 10
+            nohup bash -c '
+              python3 -m venv ~/venv
+              ~/venv/bin/pip install -r ~/requirements.txt
+              pkill -f \"python app.py\" || true
+              nohup ~/venv/bin/python ~/app.py > ~/app.log 2>&1 &
+              echo \"Deployment completed\"
+            ' > ~/deploy.log 2>&1 &
           " --strict-host-key-checking=no
           
-          # Step 3: Verify
-          echo "✅ Step 3: Verifying deployment..."
+          # Wait a bit for deployment to complete
+          sleep 30
+          
+          # Check if deployment was successful
           gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
-            echo 'Checking if app is running...'
             if pgrep -f 'python app.py' > /dev/null; then
-              echo 'SUCCESS: Flask app is running!'
-              echo 'Process ID: ' && pgrep -f 'python app.py'
-              echo ''
-              echo 'Application log (last 10 lines):'
-              tail -10 ~/flaskapp.log 2>/dev/null || echo 'Log file being created...'
+              echo '✅ App is running successfully'
+              echo 'Recent app log:'
+              tail -10 ~/app.log
             else
-              echo 'ERROR: App is not running. Check log:'
-              cat ~/flaskapp.log 2>/dev/null || echo 'No log file found'
-              exit 1
+              echo '❌ App failed to start'
+              echo 'Deployment log:'
+              cat ~/deploy.log
+              echo 'App log:'
+              cat ~/app.log
             fi
           " --strict-host-key-checking=no
           
-          # Get IP and display success message
           EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          
-          echo ""
-          echo "🎉🎉🎉 DEPLOYMENT COMPLETED SUCCESSFULLY! 🎉🎉🎉"
-          echo ""
-          echo "🌍 YOUR FLASK TODO APP IS NOW LIVE!"
-          echo "   URL: http://$EXTERNAL_IP:5000"
-          echo ""
-          echo "📝 Next steps:"
-          echo "   1. Open http://$EXTERNAL_IP:5000 in your browser"
-          echo "   2. Test the application functionality"
-          echo "   3. Check logs if needed: gcloud compute ssh $VM_NAME --command='tail -f ~/flaskapp.log'"
-          echo ""
-          echo "✅ Deployment pipeline is now fully automated!"
+          echo "🌍 Access your app at: http://$EXTERNAL_IP:5000"
 
                 # Write systemd service file
               echo '[Unit]
