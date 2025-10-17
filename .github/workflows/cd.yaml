@@ -213,10 +213,10 @@ jobs:
 
       - name: Set up GCP auth
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_SA_KEY: ${{ secrets.GCP_CREDENTIALS }}
         run: |
           # Create the key file
-          echo "$GCP_SA_KEY" > "$HOME/github-deployer-key.json"
+          echo "$secrets.GCP_CREDENTIALS" > "$HOME/github-deployer-key.json"
           
           # Validate JSON
           python3 -c "import json; json.load(open('$HOME/github-deployer-key.json')); print('✅ GCP key is valid JSON')"
