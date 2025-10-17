@@ -258,53 +258,43 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Deploy to GCP VM
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ steps.get-ip.outputs.ip }}
-          username: ${{ secrets.VM_USERNAME }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            # Update and install dependencies
-            sudo apt update -y
-            sudo apt install -y python3 python3-pip python3-venv nginx git
-            
-            # Create app directory
-            sudo mkdir -p /var/www/flaskapp
-            sudo chown -R $USER:$USER /var/www/flaskapp
-            
-            # Clone or copy your app
-            cd /var/www/flaskapp
-            git clone https://github.com/Oluwaseun186/tastManager.git .
-            
-            # Set up Python environment
+      - name: Simple VM Deployment
+        run: |
+          ZONE="us-central1-a"
+          VM_NAME="flask-todo-vm"
+          
+          # Run everything in one command
+          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
+            cd ~
+            rm -rf flaskapp
+            git clone https://github.com/Oluwaseun186/tastManager.git flaskapp
+            cd flaskapp
+            sudo apt update -y && sudo apt install -y python3 python3-pip nginx
             python3 -m venv venv
             source venv/bin/activate
             pip install -r requirements.txt
-            
-            # Configure nginx
-            sudo tee /etc/nginx/sites-available/flaskapp > /dev/null << EOF
+            sudo tee /etc/nginx/sites-available/flaskapp > /dev/null << 'NGINXCFG'
             server {
                 listen 80;
                 server_name _;
                 location / {
                     proxy_pass http://127.0.0.1:5000;
-                    proxy_set_header Host \$host;
-                    proxy_set_header X-Real-IP \$remote_addr;
+                    proxy_set_header Host \\$host;
+                    proxy_set_header X-Real-IP \\$remote_addr;
                 }
             }
-            EOF
-            
+            NGINXCFG
             sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled/
             sudo rm -f /etc/nginx/sites-enabled/default
             sudo systemctl restart nginx
-            
-            # Start the application
-            source venv/bin/activate
-            nohup python app.py > /var/log/flaskapp.log 2>&1 &
-            echo "Application started."
-      
-            echo "Deployment successful! Visit: http://$EXTERNAL_IP"
+            pkill -f 'python app.py' || true
+            nohup python app.py > /dev/null 2>&1 &
+            echo 'Flask app deployed and running!'
+          " --strict-host-key-checking=no
+          
+          # Get and display the IP
+          EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "🎉 Your app is live at: http://$EXTERNAL_IP"
 
               # Write systemd service file
               echo '[Unit]
