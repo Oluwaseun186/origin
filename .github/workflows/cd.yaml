@@ -260,37 +260,23 @@ jobs:
 
       - name: Deploy to VM
         run: |
-          set -e  # Exit on error
+          # ... same setup code ...
           
-          ZONE="us-central1-a"
-          VM_NAME="flask-todo-vm"
-          
-          # Get external IP
-          EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          echo "📦 Deploying to $EXTERNAL_IP..."
-          
-          # Wait for SSH to be available
-          echo "⏳ Waiting for VM to be ready..."
-          until gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="echo 'VM ready'" --strict-host-key-checking=no; do
-            echo "VM not ready yet, waiting..."
-            sleep 10
-          done
-          
-          # Deploy application
-          echo "🚀 Deploying application..."
-          gcloud compute scp --recurse ./* "$VM_NAME":/var/www/flaskapp/ --zone="$ZONE"
-          
+          # Deploy only necessary files
+          echo "🚀 Deploying necessary files..."
+          tar czf - \
+            --exclude='.git' \
+            --exclude='__pycache__' \
+            --exclude='.github' \
+            --exclude='.circleci' \
+            --exclude='*.db' \
+            app.py requirements.txt templates test_app.py | \
           gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command='
             cd /var/www/flaskapp
-            python3 -m venv venv
-            source venv/bin/activate
-            pip install -r requirements.txt
-            sudo systemctl restart nginx
-            pkill -f "python app.py" || true
-            nohup python app.py > /var/log/flaskapp.log 2>&1 &
+            tar xzf -
           ' --strict-host-key-checking=no
     
-          echo "✅ Deployment successful! Visit: http://$EXTERNAL_IP"
+          echo "Deployment successful! Visit: http://$EXTERNAL_IP"
 
             # Write systemd service file
             echo '[Unit]
