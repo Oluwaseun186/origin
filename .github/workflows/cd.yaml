@@ -223,17 +223,22 @@ jobs:
           chmod 600 "$HOME/github-deployer-key.json"
           gcloud auth activate-service-account --key-file="$HOME/github-deployer-key.json"
           gcloud auth list
-       
-
-      - name: Verify authentication.
+          
+          # Set project
+      - name: Set up Google cloud provider
         run: |
-          echo "✅ Verifying authentication..."
-          gcloud config get-value project
+          # Authenticate and set project
+          echo '${{ secrets.GCP_SA_KEY_BASE64 }}' | base64 --decode > /tmp/gcp-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+          gcloud config set project testing-app-2025101
+         
 
       - name: Create or verify VM
         run: |
             ZONE="us-central1-a"
             VM_NAME="flask-todo-vm"
+            PROJECT="testing-app-2025101"
+
 
             if ! gcloud compute instances describe "$VM_NAME" --zone="$ZONE" >/dev/null 2>&1; then
               echo "Creating VM instance..."
