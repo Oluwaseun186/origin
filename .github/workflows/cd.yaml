@@ -197,7 +197,7 @@ jobs:
           echo "- **Infrastructure**: Checkov"
           echo "- **Image Signing**: Cosign."
           echo ""
-          echo "### 📊 Status:"
+          echo "### Status:"
           echo "All security scans completed (status may vary)."
           echo ""
           echo "---"
@@ -257,71 +257,39 @@ jobs:
             else
               echo "VM $VM_NAME already exists, skipping creation."
             fi
-      - name: Deploy to VM
+
+      - name: Flask Deployment
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           
-          # Run deployment with proper error handling
+          # Copy only the essential files
+          echo "Copying files..."
+          gcloud compute scp app.py requirements.txt "$VM_NAME":~/ --zone="$ZONE"
+          
+          if [ -d "templates" ]; then
+            gcloud compute scp --recurse templates/ "$VM_NAME":~/templates/ --zone="$ZONE"
+          fi
+          
+          # Simple setup on VM
           gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command='
-            set -e  # Exit on error
-            
-            echo "🚀 Starting deployment..."
-            
-            # Update system and install dependencies
+            # Install only what we need
             sudo apt update -y
-            sudo apt install -y python3 python3-pip python3-venv nginx git
+            sudo apt install -y python3 python3-pip python3-venv
             
-            # Set up application directory
-            mkdir -p ~/flaskapp
-            cd ~/flaskapp
+            # Create venv and install packages
+            python3 -m venv ~/venv
+            ~/venv/bin/pip install -r ~/requirements.txt
             
-            # Clone your repository (using the correct URL format)
-            git clone https://github.com/Oluwaseun186/tastManager.git .
+            # Stop any running app and start new one
+            pkill -f "python app.py" || true
+            nohup ~/venv/bin/python ~/app.py > ~/app.log 2>&1 &
             
-            # Create virtual environment
-            python3 -m venv venv
-            source venv/bin/activate
-            
-            # Install Python dependencies
-            pip install --upgrade pip
-            pip install -r requirements.txt
-            
-            # Create proper nginx configuration
-                sudo tee /etc/nginx/sites-available/flaskapp > /dev/null << EOF
-          server {
-              listen 80;
-              server_name _;
-              
-              location / {
-                  proxy_pass http://127.0.0.1:5000;
-                  proxy_set_header Host \$host;
-                  proxy_set_header X-Real-IP \$remote_addr;
-              }
-          }
-          EOF
-                
-                # Enable nginx site
-                sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled/
-                sudo rm -f /etc/nginx/sites-enabled/default
-                
-                # Test nginx configuration
-                sudo nginx -t
-                
-                # Restart nginx
-                sudo systemctl restart nginx
-                
-                # Stop any running Flask app and start new one
-                pkill -f "python app.py" || true
-                source venv/bin/activate
-                nohup python app.py > ~/app.log 2>&1 &
-                
-                echo "✅ Deployment completed successfully!"
-              ' --strict-host-key-checking=no
-              
-              # Get and display the IP
-              EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-              echo "🎉 Your Flask app is live at: http://$EXTERNAL_IP"
+            echo "App started on port 5000"
+          ' --strict-host-key-checking=no
+          
+          EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "✅ App deployed! Access at: http://$EXTERNAL_IP:5000"
 
               # Write systemd service file
               echo '[Unit]
@@ -360,8 +328,8 @@ jobs:
                       ZONE: us-central1-a
                     run: |
                       EXTERNAL_IP=$(gcloud compute instances describe flask-todo-vm --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-                      echo "🚀 App deployed successfully!"
-                      echo "🌍 Visit: http://${EXTERNAL_IP}"
+                      echo "App deployed successfully!"
+                      echo "Visit: http://${EXTERNAL_IP}"
 
 
 
