@@ -277,3 +277,11 @@ jobs:
           VM_NAME="flask-todo-vm"
           EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
           echo "🌍 Live URL: http://$EXTERNAL_IP:5000"
+
+      - name: Delete VM
+        if: always() && github.ref != 'refs/heads/main'
+        run: |
+          ZONE="us-central1-a"
+          VM_NAME="flask-todo-vm"
+          gcloud compute instances delete "$VM_NAME" --zone="$ZONE" --quiet
+          echo "✅ VM deleted successfully"
