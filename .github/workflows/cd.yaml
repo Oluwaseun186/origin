@@ -258,38 +258,39 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Flask Deployment
+      - name: Deploy with existing setup
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           
-          # Copy only the essential files
-          echo "Copying files..."
-          gcloud compute scp app.py requirements.txt "$VM_NAME":~/ --zone="$ZONE"
+          # Copy files
+          gcloud compute scp app.py requirements.txt "$VM_NAME":~/flaskapp/ --zone="$ZONE"
           
           if [ -d "templates" ]; then
-            gcloud compute scp --recurse templates/ "$VM_NAME":~/templates/ --zone="$ZONE"
+            gcloud compute scp --recurse templates/ "$VM_NAME":~/flaskapp/templates/ --zone="$ZONE"
           fi
           
-          # Simple setup on VM
+          # Quick setup
           gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command='
-            # Install only what we need
-            sudo apt update -y
-            sudo apt install -y python3 python3-pip python3-venv
+            cd ~/flaskapp
             
-            # Create venv and install packages
-            python3 -m venv ~/venv
-            ~/venv/bin/pip install -r ~/requirements.txt
+            # Use existing python environment or create one
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
             
-            # Stop any running app and start new one
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Restart the app
             pkill -f "python app.py" || true
-            nohup ~/venv/bin/python ~/app.py > ~/app.log 2>&1 &
+            nohup python app.py > app.log 2>&1 &
             
-            echo "App started on port 5000"
+            echo "App restarted with new code"
           ' --strict-host-key-checking=no
           
           EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          echo "✅ App deployed! Access at: http://$EXTERNAL_IP:5000"
+          echo "🚀 App updated! Visit: http://$EXTERNAL_IP"
 
               # Write systemd service file
               echo '[Unit]
