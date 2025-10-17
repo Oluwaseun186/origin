@@ -258,7 +258,7 @@ jobs:
               echo "VM $VM_NAME already exists, skipping creation."
             fi
 
-      - name: Remove nginx completely
+      - name: Remove nginx 
         run: |
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
@@ -269,7 +269,6 @@ jobs:
             sudo systemctl disable nginx 2>/dev/null || true
             sudo apt remove -y nginx nginx-common 2>/dev/null || true
             sudo apt autoremove -y 2>/dev/null || true
-            echo '✅ nginx removed'
           " --strict-host-key-checking=no
 
       - name: Deployment Success Message
@@ -277,16 +276,4 @@ jobs:
           ZONE="us-central1-a"
           VM_NAME="flask-todo-vm"
           EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-          
-          echo "=================================================================="
-          echo "🚀 FLASK APP DEPLOYED SUCCESSFULLY!"
-          echo "=================================================================="
-          echo ""
           echo "🌍 Live URL: http://$EXTERNAL_IP:5000"
-          echo ""
-          echo "✅ Simple Flask deployment (no nginx)"
-          echo "✅ Direct port 5000 access"
-          echo "✅ Full CI/CD automation"
-          echo ""
-          echo "Open the URL above to test your Flask Todo App!"
-          echo "=================================================================="
