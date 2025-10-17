@@ -251,3 +251,4 @@ jobs:
         echo "---"
         echo "*Security pipeline executed on $(date)*"
       shell: bash
+  

@@ -1,5 +1,6 @@
-Flask==2.3.2
+Flask==3.0.3
 pytest
 werkzeug==2.3.8
 pytest
 Flask
+gunicorn==21.2.0

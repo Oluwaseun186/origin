@@ -1,0 +1,112 @@
+name: Deploy Flask Todo App on GCP with Nginx
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: testing-app-2025101
+          service_account_key: ${{ secrets.GCP_CREDENTIALS }}
+          export_default_credentials: true
+
+      - name: Create or verify VM
+        run: |
+          ZONE="us-central1-a"
+          VM_NAME="flask-todo-vm"
+
+          if ! gcloud compute instances describe "$VM_NAME" --zone="$ZONE" >/dev/null 2>&1; then
+            echo "Creating VM instance..."
+            gcloud compute instances create "$VM_NAME" \
+              --zone="$ZONE" \
+              --machine-type=e2-micro \
+              --image-family=debian-12 \
+              --image-project=debian-cloud \
+              --tags=http-server \
+              --metadata=startup-script='#!/bin/bash
+                apt update -y
+                apt install -y python3 python3-pip nginx git
+                mkdir -p /var/www/flaskapp
+                systemctl enable nginx
+                systemctl start nginx'
+          else
+            echo "VM $VM_NAME already exists, skipping creation."
+          fi
+
+      - name: Deploy Flask App
+        env:
+          ZONE: us-central1-a
+          VM_NAME: flask-todo-vm
+        run: |
+          EXTERNAL_IP=$(gcloud compute instances describe "$VM_NAME" --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "Deploying to $EXTERNAL_IP..."
+
+          # Copy files to VM
+          gcloud compute scp --recurse ./ "$VM_NAME":/home/${USER}/flaskapp --zone="$ZONE" --quiet
+
+          # SSH into VM and configure environment
+          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --quiet --command="
+            set -e
+            cd /home/${USER}/flaskapp
+
+            echo 'Installing dependencies...'
+            sudo pip3 install -r requirements.txt || sudo pip3 install flask gunicorn
+
+            # Initialize DB if missing
+            if [ ! -f tasks.db ]; then
+              python3 -c 'import app'
+            fi
+
+            echo 'Creating Gunicorn systemd service...'
+            sudo bash -c 'cat > /etc/systemd/system/flaskapp.service <<EOF
+[Unit]
+Description=Gunicorn for Flask Todo App
+After=network.target
+
+[Service]
+User=${USER}
+Group=www-data
+WorkingDirectory=/home/${USER}/flaskapp
+ExecStart=/usr/bin/gunicorn --workers 3 --bind unix:/home/${USER}/flaskapp/flaskapp.sock app:app
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+
+            echo 'Configuring Nginx...'
+            sudo bash -c 'cat > /etc/nginx/sites-available/flaskapp <<EOF
+server {
+    listen 80;
+    server_name _;
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/home/${USER}/flaskapp/flaskapp.sock;
+    }
+}
+EOF'
+
+            sudo ln -sf /etc/nginx/sites-available/flaskapp /etc/nginx/sites-enabled
+            sudo nginx -t
+            sudo systemctl daemon-reload
+            sudo systemctl enable flaskapp
+            sudo systemctl restart flaskapp
+            sudo systemctl restart nginx
+          "
+
+      - name: Show external IP
+        env:
+          ZONE: us-central1-a
+        run: |
+          EXTERNAL_IP=$(gcloud compute instances describe flask-todo-vm --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "🚀 App deployed successfully!"
+          echo "🌍 Visit: http://${EXTERNAL_IP}"
