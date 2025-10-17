@@ -219,7 +219,7 @@ jobs:
           gcloud auth list
           gcloud config list
 
-      - name: Verify authentication
+      - name: Verify authentication.
         run: |
           echo "✅ Verifying authentication..."
           gcloud auth list
