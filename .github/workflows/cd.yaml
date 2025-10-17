@@ -211,12 +211,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up GCP auth.
+      - name: Set up GCP auth
         env:
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
         run: |
-          # Create the key file
-          echo "$secrets.GCP_CREDENTIALS" > "$HOME/github-deployer-key.json"
+          # Create the key file - use $GCP_CREDENTIALS not $secrets.GCP_CREDENTIALS
+          echo "$GCP_CREDENTIALS" > "$HOME/github-deployer-key.json"
           
           # Validate JSON
           python3 -c "import json; json.load(open('$HOME/github-deployer-key.json')); print('✅ GCP key is valid JSON')"
