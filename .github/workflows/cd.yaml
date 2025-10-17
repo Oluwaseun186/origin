@@ -270,6 +270,15 @@ jobs:
           echo "   Restart app: gcloud compute ssh $VM_NAME --command='pkill -f \"python app.py\" && nohup ~/venv/bin/python ~/app.py > ~/flaskapp.log 2>&1 &'"
           echo "   Stop app: gcloud compute ssh $VM_NAME --command='pkill -f \"python app.py\"'"
 
+          
+          gcloud compute ssh "$VM_NAME" --zone="$ZONE" --command="
+          # Remove the problematic nginx config
+          sudo rm -f /etc/nginx/sites-enabled/flaskapp
+          sudo rm -f /etc/nginx/sites-available/flaskapp
+          # Restore default nginx config
+          sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
+          sudo nginx -t && sudo systemctl restart nginx || echo 'nginx cleanup completed'
+
                 # Write systemd service file
               echo '[Unit]
               Description=Gunicorn for Flask App
