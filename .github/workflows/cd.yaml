@@ -217,6 +217,11 @@ jobs:
           project_id: testing-app-2025101
           service_account_key: ${{ secrets.GCP_CREDENTIALS }}
           export_default_credentials: true
+          
+      - name: Verify GCP Authentication
+        run: |
+          gcloud auth list
+          gcloud config list
 
       - name: Create or verify VM
         run: |
@@ -301,3 +306,6 @@ jobs:
                     EXTERNAL_IP=$(gcloud compute instances describe flask-todo-vm --zone="$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
                     echo "🚀 App deployed successfully!"
                     echo "🌍 Visit: http://${EXTERNAL_IP}"
+
+
+
